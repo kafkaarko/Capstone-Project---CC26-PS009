@@ -1,161 +1,161 @@
-# 🚀 Expense Tracker + OCR (Laravel + Docker)
+# 💰 Capstone Project - Expense Tracker with OCR
 
-Aplikasi ini adalah sistem pencatatan pengeluaran berbasis Laravel yang dilengkapi dengan fitur **OCR (Optical Character Recognition)** menggunakan Tesseract untuk membaca struk otomatis.
+## 📌 Overview
 
----
+Project ini adalah aplikasi manajemen keuangan berbasis web yang memanfaatkan teknologi **OCR (Optical Character Recognition)** untuk membaca struk belanja secara otomatis.
 
-## 🔥 Features
+User dapat mengupload gambar struk, kemudian sistem akan:
 
-* 📸 Upload struk → auto extract nominal
-* 💰 Tracking pengeluaran user
-* 📊 Dashboard dengan total spending
-* ⚠️ Budget limit + warning jika over
-* 🔐 Authentication (Login/Register)
-* 🐳 Full Dockerized (no ribet setup)
+1. Mengekstrak teks menggunakan OCR (Tesseract)
+2. Mengidentifikasi nilai transaksi
+3. Menyimpan data ke database
+4. Menampilkan data dalam dashboard
 
 ---
 
-## 🧠 Tech Stack
+## 🚀 Features
 
-* Laravel (Backend)
-* MySQL (Database)
-* Tesseract OCR
-* Docker + Docker Compose
-* Tailwind CSS
+* 📤 Upload struk (image)
+* 🔍 OCR text extraction (Tesseract)
+* 💾 Penyimpanan otomatis ke database
+* 📊 Dashboard monitoring pengeluaran
+* 💰 Budget tracking system
+* 🔐 Authentication system (Laravel)
 
 ---
 
-## ⚡ Quick Start (Super Easy Mode)
+## 🧠 How It Works
+
+```text
+User Upload Image
+        ↓
+OCR (Tesseract)
+        ↓
+Text Processing
+        ↓
+Extract Nominal
+        ↓
+Store to Database
+        ↓
+Display on Dashboard
+```
+
+---
+
+## 🛠️ Tech Stack
+
+* **Backend**: Laravel (PHP 8.2)
+* **Database**: MySQL (Dockerized)
+* **OCR Engine**: Tesseract OCR
+* **Containerization**: Docker & Docker Compose
+
+---
+
+## ⚙️ Installation (Docker - Recommended)
+
+### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-repo/project.git
-cd be
+git clone https://github.com/kafkaarko/Capstone-Project---CC26-PS009.git
+cd Capstone-Project---CC26-PS009
+```
+
+### 2. Run Docker
+
+```bash
 docker-compose up --build
 ```
 
-Open di browser:
+### 3. Access App
 
 ```
 http://localhost:8000
 ```
 
-DONE. No setup tambahan. No drama. 🧘
-
 ---
 
-## 🐳 Docker Breakdown
+## ⚙️ Manual Setup (Without Docker)
 
-### Services:
+### Requirements
 
-* `app` → Laravel + PHP + Tesseract
-* `db` → MySQL
+* PHP 8+
+* Composer
+* MySQL
+* Tesseract OCR installed
 
----
-
-## 🗂️ Project Structure
-
-```
-be/
-├── app/
-├── public/
-├── resources/
-├── routes/
-├── storage/
-├── Dockerfile
-├── docker-compose.yml
-├── nginx.conf (optional)
-└── .env
-```
-
----
-
-## ⚙️ Auto Setup (Handled by Docker)
-
-Saat pertama kali run:
-
-* Auto copy `.env`
-* Auto generate `APP_KEY`
-* Auto migrate database
-* Auto install dependencies
-* Auto run server
-
-👉 Jadi user gak perlu setup manual sama sekali.
-
----
-
-## 💡 How It Works
-
-1. User upload gambar struk
-2. Tesseract membaca teks dari gambar
-3. Sistem extract angka (total belanja)
-4. Data disimpan ke database
-5. Dashboard menampilkan:
-
-   * Total pengeluaran
-   * Chart
-   * Budget warning
-
----
-
-## ⚠️ Budget System
-
-User bisa set maksimal budget.
-
-Contoh:
-
-* Budget: Rp1.000.000
-* Spending: Rp1.200.000
-
-👉 Sistem akan kasih warning (over budget)
-
----
-
-## 🧪 Testing OCR (Optional)
-
-Masuk container:
+### Steps
 
 ```bash
-docker exec -it laravel_app bash
-tesseract --version
+composer install
+cp .env.example .env
+php artisan key:generate
 ```
 
-Kalau muncul versi → berarti OCR ready 🔥
+### Configure Database (.env)
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=keuangan
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+### Run Migration & Serve
+
+```bash
+php artisan migrate
+php artisan storage:link
+php artisan serve
+```
 
 ---
 
-## 🚨 Known Limitations
+## 📂 Project Structure
 
-* OCR tidak selalu 100% akurat (tergantung kualitas gambar)
-* Setup ini optimized untuk development/demo (bukan production)
-* Belum ada optimasi scaling
-
----
-
-## 🧠 Future Improvements
-
-* AI-based parsing (biar lebih akurat dari regex)
-* Multi-currency support
-* Analytics lebih advanced
-* Mobile responsive dashboard
-* Export laporan (PDF/Excel)
+```text
+app/
+├── Http/Controllers
+├── Models
+resources/
+├── views/
+routes/
+├── web.php
+```
 
 ---
 
-## 👨‍💻 Author
+## ⚠️ Known Limitations
 
-Built under pressure, powered by deadline 😤🔥
-
----
-
-## 🏁 Final Notes
-
-Project ini dibuat dengan mindset:
-
-> "Ship first. Perfect later."
-
-Kalau jalan → itu sudah win.
-Kalau clean → itu bonus.
+* OCR accuracy bergantung pada kualitas gambar
+* Tidak semua format struk dapat dibaca dengan sempurna
+* Parsing nominal masih berbasis pola sederhana
 
 ---
 
-**Now go demo and dominate. 🚀**
+## 📈 Future Improvements
+
+* Improve OCR parsing accuracy (AI/NLP)
+* Support multiple currencies
+* Advanced analytics dashboard
+* Export report (PDF/Excel)
+
+---
+
+## 👨‍🍳 Author
+
+Developed as Capstone Project
+
+---
+
+## 💡 Notes
+
+Project ini dirancang dengan pendekatan **reproducibility**, sehingga dapat dijalankan di environment berbeda menggunakan Docker tanpa perlu setup manual yang kompleks.
+
+---
+
+## 🔥 Final Statement
+
+> This project is not just about features,
+> but about building a system that is portable, scalable, and reproducible.
