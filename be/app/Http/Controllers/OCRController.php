@@ -6,192 +6,222 @@ use Illuminate\Http\Request;
 use App\Models\Transaction;
 use thiagoalessio\TesseractOCR\TesseractOCR;
 use Intervention\Image\ImageManagerStatic as Image;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class OCRController extends Controller
 {
     // =========================================================
-    // 🔥 VIEW
+    // VIEW — Upload Page
     // =========================================================
-    public function index()
-    {
-        $data = Transaction::latest()->get();
-        return view('index', compact('data'));
+public function index(Request $request)
+{
+    $userId = auth()->id();
+    if (!$userId) abort(403);
+
+    $query = Transaction::query()
+        ->where('user_id', $userId);
+
+    // FILTER
+    if ($request->filled('date_from')) {
+        $query->whereDate('created_at', '>=', $request->date_from);
     }
 
+    if ($request->filled('date_to')) {
+        $query->whereDate('created_at', '<=', $request->date_to);
+    }
+
+    if ($request->filled('category')) {
+        $query->where('category', $request->category);
+    }
+
+    // SELECT ONLY WHAT YOU NEED 🔥
+    $key = 'transactions_' . $userId . '_' . md5(json_encode($request->all()));
+
+    $data = Cache::remember($key, 30, function () use ($query) {
+        return $query->latest('created_at')
+            ->paginate(20)
+            ->withQueryString();
+    });
+
+    return view('index', compact('data'));
+}
+
     // =========================================================
-    // 🔥 UPLOAD + OCR PIPELINE
+    // UPLOAD + OCR PIPELINE
     // =========================================================
     public function upload(Request $request)
     {
         $request->validate([
-            'image' => 'required|image|max:2048'
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:4096'
         ]);
 
-        // ======================
-        // 🖼️ SIMPAN GAMBAR
-        // ======================
+        // Simpan gambar original
         $path = $request->file('image')->store('images', 'public');
         $fullPath = storage_path('app/public/' . $path);
 
-        // ======================
-        // 🔥 PREPROCESS IMAGE
-        // ======================
-        $processedPath = storage_path('app/public/processed_' . time() . '.jpg');
+        // Preprocess image
+        $processedPath = storage_path('app/public/processed_' . time() . '_' . uniqid() . '.jpg');
 
-        Image::make($fullPath)
-            ->resize(null, 1000, function ($constraint) {
-                $constraint->aspectRatio();
-            })
-            ->greyscale()
-            ->contrast(50)
-            ->brightness(15)
-            ->sharpen(20)
-            ->save($processedPath);
+        try {
+            Image::make($fullPath)
+                ->resize(null, 1200, function ($c) { $c->aspectRatio(); })
+                ->greyscale()
+                ->contrast(40)
+                ->brightness(10)
+                ->sharpen(15)
+                ->save($processedPath);
+        } catch (\Exception $e) {
+            Log::error('Image preprocess failed: ' . $e->getMessage());
+            // fallback ke original
+            $processedPath = $fullPath;
+        }
 
-        // ======================
-        // 🔥 OCR PROCESS
-        // ======================
-        $ocr = new TesseractOCR($processedPath);
+        // OCR
+        $ocrText = '';
+        try {
+            $ocr = new TesseractOCR($processedPath);
+            $ocrText = $ocr
+                ->lang('eng', 'ind')
+                ->psm(6)
+                ->config('tessedit_char_whitelist', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz:.,/ RpIDR-')
+                ->run();
+        } catch (\Exception $e) {
+            Log::error('OCR failed: ' . $e->getMessage());
+        }
 
-        // $ocr->executable("C:\\Program Files\\Tesseract-OCR\\tesseract.exe");
-
-        $ocrText = $ocr
-            ->lang('eng')
-            ->config('tessedit_char_whitelist', '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz:., RpIDR')
-            ->run();
+        // Cleanup processed file
+        if ($processedPath !== $fullPath && file_exists($processedPath)) {
+            @unlink($processedPath);
+        }
 
         $cleanText = strtoupper($ocrText);
 
-        // ======================
-        // 💰 EXTRACT TOTAL
-        // ======================
+        // Extract total
         $total = 0;
-
-        // PRIORITAS: format IDR (mobile banking)
         if (strpos($cleanText, 'IDR') !== false) {
             if (preg_match('/IDR\s?([\d,\.]+)/', $cleanText, $m)) {
                 $total = $this->normalizeNumber($m[1]);
             }
         }
-
-        // fallback ke regex umum
         if ($total == 0) {
             $total = $this->extractTotal($cleanText);
         }
 
-        // ======================
-        // 📅 EXTRACT DATE
-        // ======================
+        // Extract date
         $date = $this->extractDate($cleanText);
 
-        // ======================
-        // 🧠 DEBUG LOG
-        // ======================
-        \Log::info('OCR RAW:', [$ocrText]);
-        \Log::info('OCR CLEAN:', [$cleanText]);
-        \Log::info('TOTAL:', [$total]);
-        \Log::info('DATE:', [$date]);
+        // Auto category
+        $category = $this->detectCategory($cleanText);
 
-        // ======================
-        // 💾 SAVE
-        // ======================
-        Transaction::create([
-            'user_id' => auth()->id() ?? 1,
-            'image' => $path,
-            'raw_text' => $ocrText,
-            'price_output' => $total,
-            'transaction_date' => $date ?? now(),
-            'category' => 'lainnya'
+        Log::info('=== OCR RESULT ===', [
+            'raw'      => $ocrText,
+            'total'    => $total,
+            'date'     => $date,
+            'category' => $category,
         ]);
 
-        return redirect('/')->with('success', 'Upload berhasil 🔥');
+        Transaction::create([
+            'user_id'          => auth()->id() ?? 1,
+            'image'            => $path,
+            'raw_text'         => $ocrText,
+            'price_output'     => $total,
+            'transaction_date' => $date ?? now(),
+            'category'         => $category,
+        ]);
+
+        return redirect()->route('upload.page')->with('success', 'Struk berhasil diupload!');
     }
 
     // =========================================================
-    // 💰 NORMALIZE NUMBER (ANTI NGACO)
+    // NORMALIZE NUMBER
     // =========================================================
-    private function normalizeNumber($value)
-{
-    $value = trim($value);
-
-    // CASE 1: format Indo → 89.000,00
-    if (preg_match('/\d+\.\d{3},\d{2}/', $value)) {
-        $value = str_replace('.', '', $value); // hapus ribuan
-        $value = explode(',', $value)[0];      // buang desimal
-    }
-
-    // CASE 2: format US → 67,100.00
-    elseif (preg_match('/\d+,\d{3}\.\d{2}/', $value)) {
-        $value = str_replace(',', '', $value); // hapus ribuan
-        $value = explode('.', $value)[0];      // buang desimal
-    }
-
-    // CASE 3: hanya ribuan → 37.500 atau 37,500
-    else {
-        $value = preg_replace('/[^0-9]/', '', $value);
-    }
-
-    return (int) $value;
-}
-
-    // =========================================================
-    // 💰 EXTRACT TOTAL
-    // =========================================================
-    private function extractTotal($text)
+    private function normalizeNumber(string $value): int
     {
-        $text = strtoupper($text);
+        $value = trim($value);
 
+        // Format Indo: 89.000,00
+        if (preg_match('/^\d{1,3}(\.\d{3})+(,\d+)?$/', $value)) {
+            $value = str_replace('.', '', $value);
+            $value = explode(',', $value)[0];
+        }
+        // Format US: 89,000.00
+        elseif (preg_match('/^\d{1,3}(,\d{3})+(\.\d+)?$/', $value)) {
+            $value = str_replace(',', '', $value);
+            $value = explode('.', $value)[0];
+        }
+        // Fallback: strip semua non-digit
+        else {
+            $value = preg_replace('/[^0-9]/', '', $value);
+        }
+
+        return (int) $value;
+    }
+
+    // =========================================================
+    // EXTRACT TOTAL
+    // =========================================================
+    private function extractTotal(string $text): int
+    {
         $keywords = [
-            'TOTAL',
             'TOTAL BAYAR',
+            'TOTAL PEMBAYARAN',
+            'JUMLAH BAYAR',
             'JUMLAH LUNAS',
+            'GRAND TOTAL',
+            'TOTAL',
             'LUNAS',
-            'PAYMENT'
+            'PAYMENT',
+            'AMOUNT',
         ];
 
         foreach ($keywords as $key) {
-            if (preg_match("/$key.*?(\d{1,3}([.,]\d{3})+)/", $text, $m)) {
-                return $this->normalizeNumber($m[1]);
+            // cari keyword lalu angka setelahnya (dalam 60 char)
+            if (preg_match('/' . preg_quote($key, '/') . '[^0-9]{0,30}([\d]{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d{4,})/i', $text, $m)) {
+                $result = $this->normalizeNumber($m[1]);
+                if ($result > 0) return $result;
             }
         }
 
-        // fallback ambil angka terbesar
-        preg_match_all('/\d{1,3}([.,]\d{3})+/', $text, $matches);
+        // Fallback: ambil angka terbesar yang kelihatan seperti uang
+        preg_match_all('/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?/', $text, $matches);
+        if (!empty($matches[0])) {
+            $numbers = array_map(fn($n) => $this->normalizeNumber($n), $matches[0]);
+            return max($numbers);
+        }
 
-        $numbers = array_map(function ($n) {
-            return $this->normalizeNumber($n);
-        }, $matches[0]);
-
-        return !empty($numbers) ? max($numbers) : 0;
+        return 0;
     }
 
     // =========================================================
-    // 📅 EXTRACT DATE
+    // EXTRACT DATE
     // =========================================================
-    private function extractDate($text)
+    private function extractDate(string $text): ?string
     {
-        $text = strtoupper($text);
+        $months = 'JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC';
 
-        if (preg_match('/(\d{1,2})\s+(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[,\s]*(\d{2,4})?\s*(\d{2}:\d{2})?/', $text, $m)) {
-
-            $day = str_pad($m[1], 2, '0', STR_PAD_LEFT);
-            $month = $this->monthToNumber($m[2]);
-            $year = $m[3] ?? date('Y');
-
-            if (strlen($year) == 2) {
-                $year = '20' . $year;
-            }
-
-            $time = $m[4] ?? '00:00';
-
+        // Format: 10 APR 2025 atau 10 APR 25 12:34
+        if (preg_match('/(\d{1,2})\s+(' . $months . ')[A-Z]*[,\s]+(\d{2,4})(?:\s+(\d{2}:\d{2}))?/i', $text, $m)) {
+            $day   = str_pad($m[1], 2, '0', STR_PAD_LEFT);
+            $month = $this->monthToNumber(strtoupper(substr($m[2], 0, 3)));
+            $year  = strlen($m[3]) == 2 ? '20' . $m[3] : $m[3];
+            $time  = $m[4] ?? '00:00';
             return "$year-$month-$day $time:00";
         }
 
+        // Format: YYYY-MM-DD
         if (preg_match('/(\d{4})-(\d{2})-(\d{2})/', $text, $m)) {
             return "$m[1]-$m[2]-$m[3]";
         }
 
+        // Format: DD/MM/YYYY
         if (preg_match('/(\d{2})\/(\d{2})\/(\d{4})/', $text, $m)) {
+            return "$m[3]-$m[2]-$m[1]";
+        }
+
+        // Format: MM/DD/YYYY (US)
+        if (preg_match('/(\d{2})\/(\d{2})\/(\d{4})/', $text, $m)) {
+            // ambiguous — asumsikan DD/MM
             return "$m[3]-$m[2]-$m[1]";
         }
 
@@ -199,77 +229,98 @@ class OCRController extends Controller
     }
 
     // =========================================================
-    // 📆 MONTH HELPER
+    // AUTO DETECT CATEGORY
     // =========================================================
-    private function monthToNumber($month)
+    private function detectCategory(string $text): string
     {
         $map = [
-            'JAN' => '01',
-            'FEB' => '02',
-            'MAR' => '03',
-            'APR' => '04',
-            'MAY' => '05',
-            'JUN' => '06',
-            'JUL' => '07',
-            'AUG' => '08',
-            'SEP' => '09',
-            'OCT' => '10',
-            'NOV' => '11',
-            'DEC' => '12',
+            'makanan'   => ['MCDONALD', 'KFC', 'BURGER', 'PIZZA', 'RESTO', 'RESTAURANT', 'CAFE', 'KOPI', 'COFFEE', 'FOOD', 'MAKAN', 'WARUNG', 'BAKSO', 'MIE', 'NASI', 'INDOMARET FRESH'],
+            'transport' => ['GRAB', 'GOJEK', 'GOCAR', 'GRABCAR', 'TAXI', 'OJEK', 'BENSIN', 'BBM', 'PERTAMINA', 'SHELL', 'TOLL', 'PARKIR', 'TRANSJAKARTA', 'BUS', 'KERETA'],
+            'belanja'   => ['INDOMARET', 'ALFAMART', 'SUPERMARKET', 'HYPERMART', 'CARREFOUR', 'LOTTEMART', 'GIANT', 'MINIMARKET', 'TOKO', 'SHOP'],
+            'kesehatan' => ['APOTEK', 'APOTIK', 'PHARMACY', 'KLINIK', 'KLINIC', 'RUMAH SAKIT', 'RS ', 'DOKTER', 'OBAT', 'VITAMIN'],
+            'hiburan'   => ['CINEMA', 'BIOSKOP', 'NETFLIX', 'SPOTIFY', 'GAME', 'STEAM', 'PLAYSTATION'],
+            'tagihan'   => ['PLN', 'PDAM', 'TELKOM', 'INDIHOME', 'WIFI', 'INTERNET', 'LISTRIK', 'AIR', 'GAS'],
         ];
 
-        return $map[$month] ?? '01';
+        foreach ($map as $category => $keywords) {
+            foreach ($keywords as $kw) {
+                if (strpos($text, $kw) !== false) {
+                    return $category;
+                }
+            }
+        }
+
+        return 'lainnya';
     }
 
     // =========================================================
-// 📊 DASHBOARD
-// =========================================================
-public function dashboard()
-{
-    $user = auth()->user();
-
-    // total spending
-    $total = Transaction::where('user_id', $user->id)->sum('price_output');
-
-    // data chart per hari
-    $transactions = Transaction::where('user_id', $user->id)
-        ->orderBy('transaction_date')
-        ->get()
-        ->groupBy(function ($item) {
-            return date('Y-m-d', strtotime($item->transaction_date));
-        });
-
-    $chartLabels = [];
-    $chartData = [];
-
-    foreach ($transactions as $date => $items) {
-        $chartLabels[] = $date;
-        $chartData[] = $items->sum('price_output');
+    // MONTH HELPER
+    // =========================================================
+    private function monthToNumber(string $month): string
+    {
+        return match($month) {
+            'JAN' => '01', 'FEB' => '02', 'MAR' => '03',
+            'APR' => '04', 'MAY' => '05', 'JUN' => '06',
+            'JUL' => '07', 'AUG' => '08', 'SEP' => '09',
+            'OCT' => '10', 'NOV' => '11', 'DEC' => '12',
+            default => '01',
+        };
     }
 
-    $budget = $user->budget ?? 0;
+    // =========================================================
+    // DASHBOARD
+    // =========================================================
+    public function dashboard()
+    {
+        $userId = auth()->id() ?? 1;
+        $user   = auth()->user();
 
-    return view('dashboard-expense', compact(
-        'total',
-        'chartLabels',
-        'chartData',
-        'budget'
-    ));
-}
+        $total = Transaction::where('user_id', $userId)->sum('price_output');
 
-// =========================================================
-// 💰 SET BUDGET
-// =========================================================
-public function setBudget(Request $request)
-{
-    $request->validate([
-        'budget' => 'required|numeric|min:0'
-    ]);
+        $transactions = Transaction::where('user_id', $userId)
+            ->orderBy('transaction_date')
+            ->get()
+            ->groupBy(fn($item) => \Carbon\Carbon::parse($item->transaction_date)->format('Y-m-d'));
 
-    $user = auth()->user();
-    $user->budget = $request->budget;
-    $user->save();
+        $chartLabels = [];
+        $chartData   = [];
 
-    return back()->with('success', 'Budget updated 🔥');
-}
+        foreach ($transactions as $date => $items) {
+            $chartLabels[] = \Carbon\Carbon::parse($date)->isoFormat('D MMM');
+            $chartData[]   = (int) $items->sum('price_output');
+        }
+
+        // Breakdown per kategori
+        $categoryBreakdown = Transaction::where('user_id', $userId)
+            ->selectRaw('category, SUM(price_output) as subtotal, COUNT(*) as count')
+            ->groupBy('category')
+            ->orderByDesc('subtotal')
+            ->get();
+
+        $budget = $user->budget ?? 0;
+
+        return view('dashboard-expense', compact(
+            'total',
+            'chartLabels',
+            'chartData',
+            'budget',
+            'categoryBreakdown',
+        ));
+    }
+
+    // =========================================================
+    // SET BUDGET
+    // =========================================================
+    public function setBudget(Request $request)
+    {
+        $request->validate([
+            'budget' => 'required|numeric|min:0|max:999999999'
+        ]);
+
+        $user = auth()->user();
+        $user->budget = (int) $request->budget;
+        $user->save();
+
+        return back()->with('success', 'Budget berhasil diupdate!');
+    }
 }
