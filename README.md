@@ -2,7 +2,7 @@
 
 ## 📌 Overview
 
-Project ini adalah aplikasi manajemen keuangan berbasis web yang memanfaatkan teknologi **OCR (Optical Character Recognition)** untuk membaca struk belanja secara otomatis.
+Project ini adalah aplikasi manajemen keuangan (FinBuddy) berbasis web yang memanfaatkan teknologi **OCR (Optical Character Recognition)** untuk membaca struk belanja secara otomatis.
 
 User dapat mengupload gambar struk, kemudian sistem akan:
 
