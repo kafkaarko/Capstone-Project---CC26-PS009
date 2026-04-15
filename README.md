@@ -1,32 +1,18 @@
-# 💰 Capstone Project - Expense Tracker with OCR
+# 💰 FinBuddy — OCR-Powered Expense Tracker
 
-## 📌 Overview
-
-Project ini adalah aplikasi manajemen keuangan (FinBuddy) berbasis web yang memanfaatkan teknologi **OCR (Optical Character Recognition)** untuk membaca struk belanja secara otomatis.
-
-User dapat mengupload gambar struk, kemudian sistem akan:
-
-1. Mengekstrak teks menggunakan OCR (Tesseract)
-2. Mengidentifikasi nilai transaksi
-3. Menyimpan data ke database
-4. Menampilkan data dalam dashboard
+> Laravel 11 · PostgreSQL · Railway · Tesseract OCR · Vite
 
 ---
 
-## 🚀 Features
+## 📌 Overview
 
-* 📤 Upload struk (image)
-* 🔍 OCR text extraction (Tesseract)
-* 💾 Penyimpanan otomatis ke database
-* 📊 Dashboard monitoring pengeluaran
-* 💰 Budget tracking system
-* 🔐 Authentication system (Laravel)
+FinBuddy adalah aplikasi manajemen keuangan berbasis web yang memanfaatkan teknologi **OCR (Optical Character Recognition)** untuk membaca struk belanja secara otomatis. Pengguna cukup mengupload foto struk, dan sistem akan mengekstrak nominal transaksi, menyimpannya ke database, serta menampilkannya dalam dashboard pengeluaran yang interaktif.
 
 ---
 
 ## 🧠 How It Works
 
-```text
+```
 User Upload Image
         ↓
 OCR (Tesseract)
@@ -42,48 +28,48 @@ Display on Dashboard
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 Features
 
-* **Backend**: Laravel (PHP 8.2)
-* **Database**: MySQL (Dockerized)
-* **OCR Engine**: Tesseract OCR
-* **Containerization**: Docker & Docker Compose
+- 📤 Upload struk (image) untuk ekstraksi otomatis
+- 🔍 OCR text extraction menggunakan Tesseract
+- 💾 Penyimpanan otomatis ke database (MySQL / PostgreSQL)
+- 📊 Dashboard monitoring pengeluaran
+- 💰 Budget tracking system bulanan
+- 🔐 Authentication system (Laravel)
+- 👤 Profile management (update & delete akun)
 
 ---
 
-## ⚙️ Installation (Docker - Recommended)
+## 🛠️ Tech Stack
 
-### 1. Clone Repository
+| Layer | Teknologi |
+|---|---|
+| Backend | Laravel 11 (PHP 8.2) |
+| Database | PostgreSQL (Railway) / MySQL (Docker) |
+| OCR Engine | Tesseract OCR |
+| Frontend Build | Vite |
+| Deployment | Railway |
+| Containerization | Docker & Docker Compose |
+
+---
+
+## ⚙️ Installation
+
+### Option 1: Docker (Recommended)
 
 ```bash
 git clone https://github.com/kafkaarko/Capstone-Project---CC26-PS009.git
 cd Capstone-Project---CC26-PS009
-```
-
-### 2. Run Docker
-
-```bash
 docker-compose up --build
 ```
 
-### 3. Access App
-
-```
-http://localhost:8000
-```
+Akses aplikasi di: `http://localhost:8000`
 
 ---
 
-## ⚙️ Manual Setup (Without Docker)
+### Option 2: Manual Setup (Without Docker)
 
-### Requirements
-
-* PHP 8+
-* Composer
-* MySQL
-* Tesseract OCR installed
-
-### Steps
+**Requirements:** PHP 8+, Composer, MySQL, Tesseract OCR
 
 ```bash
 composer install
@@ -91,7 +77,7 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-### Configure Database (.env)
+**Configure `.env`:**
 
 ```env
 DB_CONNECTION=mysql
@@ -102,7 +88,7 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-### Run Migration & Serve
+**Run Migration & Serve:**
 
 ```bash
 php artisan migrate
@@ -112,40 +98,133 @@ php artisan serve
 
 ---
 
+## ☁️ Deployment (Railway)
+
+### 1. Environment Variables
+
+```env
+DB_CONNECTION=pgsql
+DB_HOST=postgres.railway.internal
+DB_PORT=5432
+DB_DATABASE=railway
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
+```
+
+### 2. Build Process (via Docker)
+
+Dijalankan otomatis:
+- Install PHP dependencies (Composer)
+- Install Node dependencies (NPM)
+- Build frontend assets (Vite)
+- Run migrations otomatis
+
+### 3. Jalankan Aplikasi
+
+```bash
+php artisan migrate --force
+php artisan serve
+```
+
+### Local Development
+
+```bash
+composer install
+npm install && npm run dev
+php artisan migrate
+php artisan serve
+```
+
+---
+
+## 🧪 API Endpoints
+
+> ⚠️ Semua endpoint memerlukan autentikasi. Pastikan sudah login sebelum mengakses.
+
+### `POST /upload` — Upload Receipt (OCR)
+
+Menerima gambar struk, mengekstrak teks menggunakan OCR, dan menyimpan data transaksi.
+
+**Request** (`multipart/form-data`):
+
+| Field | Type | Keterangan |
+|---|---|---|
+| `file` | image (jpg/png) | Foto struk belanja |
+
+**Response:**
+
+```json
+{
+  "status": "success",
+  "data": "Extracted text from receipt"
+}
+```
+
+---
+
+### `GET /dashboard-expense` — Get Transactions
+
+Mengambil semua data transaksi pengguna untuk ditampilkan di dashboard.
+
+---
+
+### `POST /set-budget` — Set Monthly Budget
+
+Menetapkan batas anggaran bulanan pengguna.
+
+**Request Body:**
+
+```json
+{
+  "budget": 1000000
+}
+```
+
+---
+
+### Ringkasan API
+
+| Method | Endpoint | Body | Response |
+|---|---|---|---|
+| `POST` | `/upload` | `file`: image (form-data) | `{ status, data: extracted_text }` |
+| `GET` | `/dashboard-expense` | — | List of transactions |
+| `POST` | `/set-budget` | `{ "budget": number }` | Budget updated |
+
+---
+
 ## 📂 Project Structure
 
-```text
+```
 app/
-├── Http/Controllers
-├── Models
+├── Http/Controllers     # Request handling & business logic
+├── Models               # Eloquent ORM models
 resources/
-├── views/
+├── views/               # Blade templates (frontend)
 routes/
-├── web.php
+├── web.php              # Route definitions
 ```
 
 ---
 
 ## ⚠️ Known Limitations
 
-* OCR accuracy bergantung pada kualitas gambar
-* Tidak semua format struk dapat dibaca dengan sempurna
-* Parsing nominal masih berbasis pola sederhana
+- OCR accuracy bergantung pada kualitas gambar yang diupload
+- Tidak semua format struk dapat dibaca dengan sempurna
+- Parsing nominal masih berbasis pola sederhana (regex)
+- Gambar berukuran besar dapat memperlambat proses OCR
+- Queue system belum diimplementasi (OCR berjalan secara sinkron)
 
 ---
 
 ## 📈 Future Improvements
 
-* Improve OCR parsing accuracy (AI/NLP)
-* Support multiple currencies
-* Advanced analytics dashboard
-* Export report (PDF/Excel)
-
----
-
-## 👨‍🍳 Author
-
-Developed as Capstone Project
+- Async OCR processing menggunakan Queue system
+- Auto-kategorisasi transaksi berbasis AI/NLP
+- Peningkatan akurasi parsing OCR
+- Support multiple currencies
+- Advanced analytics dashboard
+- Export laporan ke PDF/Excel
+- Integrasi mobile app
 
 ---
 
@@ -155,7 +234,10 @@ Project ini dirancang dengan pendekatan **reproducibility**, sehingga dapat dija
 
 ---
 
-## 🔥 Final Statement
+## 👨‍💻 Author
 
-> This project is not just about features,
-> but about building a system that is portable, scalable, and reproducible.
+Developed as Capstone Project — CC26-PS009
+
+---
+
+> *This is not just a CRUD app. This is a system.* 🚀
