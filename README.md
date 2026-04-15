@@ -139,13 +139,38 @@ php artisan serve
 
 ## 🧪 API Endpoints
 
-> ⚠️ Semua endpoint memerlukan autentikasi. Pastikan sudah login sebelum mengakses.
+> ⚠️ Semua endpoint memerlukan autentikasi (`middleware: auth`). Pastikan sudah login sebelum mengakses.
+
+---
+
+### `GET /` — Root Redirect
+
+Redirect otomatis ke `/dashboard-expense`.
+
+---
+
+### `GET /upload-page` — Halaman Upload
+
+Menampilkan halaman form upload struk.
+
+| | |
+|---|---|
+| Controller | `OCRController@index` |
+| Route Name | `upload.page` |
+
+---
 
 ### `POST /upload` — Upload Receipt (OCR)
 
 Menerima gambar struk, mengekstrak teks menggunakan OCR, dan menyimpan data transaksi.
 
-**Request** (`multipart/form-data`):
+| | |
+|---|---|
+| Controller | `OCRController@upload` |
+| Route Name | `upload` |
+| Content-Type | `multipart/form-data` |
+
+**Request Body:**
 
 | Field | Type | Keterangan |
 |---|---|---|
@@ -162,15 +187,25 @@ Menerima gambar struk, mengekstrak teks menggunakan OCR, dan menyimpan data tran
 
 ---
 
-### `GET /dashboard-expense` — Get Transactions
+### `GET /dashboard-expense` — Dashboard Transaksi
 
-Mengambil semua data transaksi pengguna untuk ditampilkan di dashboard.
+Menampilkan semua data transaksi dan ringkasan pengeluaran pengguna.
+
+| | |
+|---|---|
+| Controller | `OCRController@dashboard` |
+| Route Name | `dashboard.expense` |
 
 ---
 
 ### `POST /set-budget` — Set Monthly Budget
 
 Menetapkan batas anggaran bulanan pengguna.
+
+| | |
+|---|---|
+| Controller | `OCRController@setBudget` |
+| Route Name | `set.budget` |
 
 **Request Body:**
 
@@ -182,13 +217,45 @@ Menetapkan batas anggaran bulanan pengguna.
 
 ---
 
-### Ringkasan API
+### `GET /profile` — Halaman Edit Profil
 
-| Method | Endpoint | Body | Response |
+| | |
+|---|---|
+| Controller | `ProfileController@edit` |
+| Route Name | `profile.edit` |
+
+---
+
+### `PATCH /profile` — Update Profil
+
+| | |
+|---|---|
+| Controller | `ProfileController@update` |
+| Route Name | `profile.update` |
+
+---
+
+### `DELETE /profile` — Hapus Akun
+
+| | |
+|---|---|
+| Controller | `ProfileController@destroy` |
+| Route Name | `profile.destroy` |
+
+---
+
+### Ringkasan Semua Route
+
+| Method | Endpoint | Controller | Route Name |
 |---|---|---|---|
-| `POST` | `/upload` | `file`: image (form-data) | `{ status, data: extracted_text }` |
-| `GET` | `/dashboard-expense` | — | List of transactions |
-| `POST` | `/set-budget` | `{ "budget": number }` | Budget updated |
+| `GET` | `/` | — (redirect) | — |
+| `GET` | `/upload-page` | `OCRController@index` | `upload.page` |
+| `POST` | `/upload` | `OCRController@upload` | `upload` |
+| `GET` | `/dashboard-expense` | `OCRController@dashboard` | `dashboard.expense` |
+| `POST` | `/set-budget` | `OCRController@setBudget` | `set.budget` |
+| `GET` | `/profile` | `ProfileController@edit` | `profile.edit` |
+| `PATCH` | `/profile` | `ProfileController@update` | `profile.update` |
+| `DELETE` | `/profile` | `ProfileController@destroy` | `profile.destroy` |
 
 ---
 
@@ -196,12 +263,14 @@ Menetapkan batas anggaran bulanan pengguna.
 
 ```
 app/
-├── Http/Controllers     # Request handling & business logic
-├── Models               # Eloquent ORM models
+├── Http/Controllers
+│   ├── OCRController.php       # Upload, OCR, dashboard, budget
+│   └── ProfileController.php  # Profile edit, update, destroy
+├── Models
 resources/
-├── views/               # Blade templates (frontend)
+├── views/                      # Blade templates (frontend)
 routes/
-├── web.php              # Route definitions
+└── web.php                     # Route definitions
 ```
 
 ---
