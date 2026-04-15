@@ -212,6 +212,61 @@
             font-weight: 600;
             font-size: 15px;
         }
+        .badge-status {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+    text-transform: capitalize;
+    display: inline-block;
+}
+.badge-pending    { background: rgba(251,191,36,0.1);  border: 1px solid rgba(251,191,36,0.3);  color: #fbbf24; }
+.badge-processing { background: rgba(96,165,250,0.1);  border: 1px solid rgba(96,165,250,0.3);  color: #60a5fa; }
+.badge-done       { background: rgba(62,201,122,0.1);  border: 1px solid rgba(62,201,122,0.3);  color: #3ec97a; }
+.badge-failed     { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
+/* ── Lightbox ── */
+.lightbox-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.lightbox-overlay.active { display: flex; }
+.lightbox-inner {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+.lightbox-inner img {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 1px solid rgba(26,160,120,0.3);
+    display: block;
+}
+.lightbox-close {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    width: 32px;
+    height: 32px;
+    background: #1e293b;
+    border: 1px solid rgba(248,113,113,0.4);
+    color: #f87171;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+}
+.lightbox-close:hover { background: rgba(248,113,113,0.15); }
+.receipt-img { cursor: pointer; transition: opacity 0.15s; }
+.receipt-img:hover { opacity: 0.75; }
     </style>
 
 {{-- ALERT --}}
@@ -311,6 +366,7 @@
                 <th>Total</th>
                 <th>Tanggal Transaksi</th>
                 <th>Kategori</th>
+                {{-- <th>Status</th>  --}}
                 <th>Upload Time</th>
             </tr>
         </thead>
@@ -323,12 +379,12 @@
                     </td>
 
                     <td>
-                        <img 
-  src="{{ asset('storage/' . $item->image) }}"
-  loading="lazy"
-  class="receipt-img"
-/>
-                    </td>
+                        <img
+    src="{{ asset('storage/' . $item->image) }}"
+    loading="lazy"
+    class="receipt-img"
+    onclick="showLightbox(this.src)"
+/>              </td>
 
                     <td class="td-price">
                         Rp {{ number_format($item->price_output ?? 0, 0, ',', '.') }}
@@ -343,6 +399,25 @@
                     <td>
                         <span class="badge-category">{{ $item->category }}</span>
                     </td>
+                    {{-- <td>
+    @php
+        $statusClass = match($item->status) {
+            'pending'    => 'badge-pending',
+            'processing' => 'badge-processing',
+            'done'       => 'badge-done',
+            'failed'     => 'badge-failed',
+            default      => 'badge-pending',
+        };
+        $statusLabel = match($item->status) {
+            'pending'    => '⏳ Pending',
+            'processing' => '🔄 Processing',
+            'done'       => '✅ Done',
+            'failed'     => '❌ Failed',
+            default      => '⏳ Pending',
+        };
+    @endphp
+    <span class="badge-status {{ $statusClass }}">{{ $statusLabel }}</span>
+</td> --}}
 
                     <td class="td-muted">
                         {{ \Carbon\Carbon::parse($item->created_at)->isoFormat('D MMM YYYY, HH:mm') }}
@@ -374,6 +449,34 @@
     </div>
 </div>
 
-
+<div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
+    <div class="lightbox-inner">
+        <div class="lightbox-close" onclick="hideLightbox()">✕</div>
+        <img id="lightbox-img" src="" alt="Struk">
+    </div>
+</div>
+<script>
+//     const hasPending = {{ $data->contains(fn($d) => in_array($d->status, ['pending','processing'])) ? 'true' : 'false' }};
+// if (hasPending) {
+//     setTimeout(() => location.reload(), 4000);
+// }
+function showLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+function hideLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+    document.body.style.overflow = '';
+}
+function closeLightbox(e) {
+    // close jika klik di luar gambar (overlay)
+    if (e.target === document.getElementById('lightbox')) hideLightbox();
+}
+// close pakai tombol ESC
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') hideLightbox();
+});
+</script>
 
 </x-app-layout>
