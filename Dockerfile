@@ -15,6 +15,11 @@ WORKDIR /app
 # 🔥 FIX PATH
 COPY ./be /app
 
+RUN rm -rf bootstrap/cache/*.php
+
+# bunuh telescope
+RUN rm -f app/Providers/TelescopeServiceProvider.php
+
 # backend
 RUN composer install --no-dev --optimize-autoloader
 
