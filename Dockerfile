@@ -1,36 +1,37 @@
 FROM php:8.4-cli
 
+# install system deps + node + tesseract
 RUN apt-get update && apt-get install -y \
-    git curl zip unzip tesseract-ocr \
-    libpng-dev libonig-dev libxml2-dev libzip-dev \
+    git curl zip unzip \
+    libpng-dev libjpeg-dev libfreetype6-dev \
+    nodejs npm \
+    tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind \
     libpq-dev \
-    && docker-php-ext-install \
-    pdo \
-    pdo_mysql \
-    pdo_pgsql \
-    pgsql \
-    mbstring \
-    bcmath \
-    gd \
-    zip
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql
+
+# install composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 
-COPY ./be /app
+# copy project
+COPY . .
 
-# bersihin cache zombie
-RUN rm -rf bootstrap/cache/*.php
+# install backend deps
+RUN composer install --no-dev --optimize-autoloader
 
-# bunuh telescope
-RUN rm -f app/Providers/TelescopeServiceProvider.php
+# install frontend deps + build vite
+RUN npm install
+RUN npm run build
 
-# install dependency
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+# laravel optimization
+RUN php artisan config:clear && \
+    php artisan config:cache && \
+    php artisan route:cache && \
+    php artisan view:cache
 
-# permission
-RUN chmod -R 777 storage bootstrap/cache
+# permission fix
+RUN chmod -R 775 storage bootstrap/cache
 
-EXPOSE 8080
-
-CMD php artisan serve --host=0.0.0.0 --port=8080
+# start app
+CMD sh -c "php artisan migrate --force && php artisan storage:link && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"
